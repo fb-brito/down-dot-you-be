@@ -7,9 +7,11 @@ https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Guia%20do%20Projeto,jun.%
 
 Aplicação Flask: down-dot-you-be:
 https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Aplica%C3%A7%C3%A3o%20Flask%3A%20down%2Ddot%2Dyou%2Dbe,-8%20de%20jun
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=implementar%20a%20fila.-,Aplica%C3%A7%C3%A3o%20Flask%20com%20Fila%20(app.py),-8%20de%20jun
 
 Interface Web: index.html:
 https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Interface%20Web%3A%20index.html,-8%20de%20jun
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Interface%20com%20Fila%20(index.html),-8%20de%20jun
 
 Dependências: requirements.txt:
 https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Depend%C3%AAncias%3A%20requirements.txt,-8%20de%20jun

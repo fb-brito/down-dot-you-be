@@ -2,13 +2,13 @@
 import os
 import csv
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import yt_dlp
 
 # --- Configuração da Aplicação Flask ---
 app = Flask(__name__)
-# Chave secreta para usar mensagens flash
-app.secret_key = 'supersecretkey' 
+# Chave secreta para usar mensagens flash e sessões
+app.secret_key = 'uma-chave-secreta-muito-forte' 
 
 # --- Constantes de Diretório ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -19,27 +19,17 @@ LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 MASTER_LOG_FILE = os.path.join(LOGS_DIR, 'master_log.csv')
 
 # --- Funções de Lógica ---
-
 def create_initial_directories():
-    """Garante que a pasta principal de downloads exista."""
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     os.makedirs(AUDIOS_DIR, exist_ok=True)
+    os.makedirs(LOGS_DIR, exist_ok=True)
 
-# Chamada da função para garantir que os diretórios sejam criados na inicialização
 create_initial_directories()
 
+# (Função log_master_record permanece a mesma)
 def log_master_record(video_info, operation_type, status, output_path):
-    """
-    Registra uma operação no arquivo de log mestre.
-    *** CORREÇÃO: Garante que o diretório de log exista antes de escrever. ***
-    """
-    # Garante que o diretório de logs exista
     os.makedirs(LOGS_DIR, exist_ok=True)
-    
-    header = [
-        "timestamp", "video_id", "video_title", 
-        "operation_type", "status", "output_file_path"
-    ]
+    header = ["timestamp", "video_id", "video_title", "operation_type", "status", "output_file_path"]
     log_entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "video_id": video_info.get('id', 'N/A'),
@@ -48,7 +38,6 @@ def log_master_record(video_info, operation_type, status, output_path):
         "status": status,
         "output_file_path": output_path
     }
-    
     file_exists = os.path.isfile(MASTER_LOG_FILE)
     with open(MASTER_LOG_FILE, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=header, delimiter=';')
@@ -56,81 +45,135 @@ def log_master_record(video_info, operation_type, status, output_path):
             writer.writeheader()
         writer.writerow(log_entry)
 
-def download_content(video_url, download_type):
-    """
-    Realiza o download de vídeo ou áudio do YouTube.
-    Retorna (True, info, path) em caso de sucesso ou (False, error_message, None) em caso de falha.
-    """
-    operation_type = "Download Inválido" # Valor padrão
+def get_video_info(video_url):
+    """Obtém informações do vídeo sem fazer o download."""
+    ydl_opts = {'quiet': True, 'noplaylist': False} # noplaylist=False para detectar playlists
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(video_url, download=False)
+            return info
+        except Exception as e:
+            print(f"Erro ao obter informações do vídeo: {e}")
+            return None
+
+def download_video_item(video_url, download_type):
+    """Função de download para um único item, adaptada da original."""
+    # Lógica de download similar à função download_content anterior...
+    # (Esta função é uma simplificação para ser chamada pela rota de download da fila)
+    operation_type = "Download Inválido"
     try:
-        if download_type == 'video':
+        if 'audio' in download_type:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+                'outtmpl': os.path.join(AUDIOS_DIR, '%(title)s [%(id)s].%(ext)s'),
+                'noplaylist': 'playlist' not in download_type
+            }
+            operation_type = "Download de Áudio" if 'playlist' not in download_type else "Download de Playlist de Áudio"
+        else: # Vídeo
             ydl_opts = {
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': os.path.join(VIDEOS_DIR, '%(title)s [%(id)s].%(ext)s'),
-                'quiet': False,
-                'noplaylist': True
+                'noplaylist': 'playlist' not in download_type
             }
-            operation_type = "Download de Vídeo"
-        elif download_type == 'audio':
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'outtmpl': os.path.join(AUDIOS_DIR, '%(title)s [%(id)s].%(ext)s'),
-                'quiet': False,
-                'noplaylist': True
-            }
-            operation_type = "Download de Áudio"
-        else:
-            return False, "Tipo de download inválido.", None
+            operation_type = "Download de Vídeo" if 'playlist' not in download_type else "Download de Playlist de Vídeo"
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
-            filename = ydl.prepare_filename(info)
-            if download_type == 'audio':
-                 base, _ = os.path.splitext(filename)
-                 filename = base + '.mp3'
-
-        log_master_record(info, operation_type, "SUCCESS", filename)
-        return True, info, filename
+            log_master_record(info, operation_type, "SUCCESS", "")
 
     except Exception as e:
-        error_message = f"Erro ao processar o download: {str(e)}"
-        log_master_record({'id': 'N/A', 'title': 'Falha no Download'}, operation_type, "FAIL", error_message)
-        return False, error_message, None
+        log_master_record({'id': 'N/A', 'title': 'Falha no Download'}, operation_type, "FAIL", str(e))
+
 
 # --- Rotas da Aplicação ---
 
 @app.route('/')
 def index():
-    """Renderiza a página inicial."""
-    return render_template('index.html')
+    """Renderiza a página inicial e exibe a fila."""
+    # A fila agora é armazenada na sessão do usuário
+    if 'queue' not in session:
+        session['queue'] = []
+    return render_template('index.html', queue=session['queue'])
 
-@app.route('/download', methods=['POST'])
-def download():
-    """Processa a requisição de download do formulário."""
+@app.route('/add', methods=['POST'])
+def add_to_queue():
+    """Adiciona um item à fila de downloads."""
     video_url = request.form.get('url')
-    download_type = request.form.get('type')
-
+    download_type = request.form.get('type') # 'video' ou 'audio'
+    
     if not video_url:
-        flash("Por favor, insira uma URL do YouTube.", "error")
+        flash("Por favor, insira uma URL.", "error")
         return redirect(url_for('index'))
 
-    success, result, path = download_content(video_url, download_type)
+    # Garante que a fila exista na sessão
+    if 'queue' not in session:
+        session['queue'] = []
+    
+    # Impõe o limite de 10 itens
+    if len(session['queue']) >= 10:
+        flash("A fila de downloads está cheia (máx. 10 itens).", "error")
+        return redirect(url_for('index'))
 
-    if success:
-        title = result.get('title', 'desconhecido')
-        flash(f"Sucesso! '{title}' foi baixado.", "success")
+    info = get_video_info(video_url)
+    if not info:
+        flash("Não foi possível obter informações da URL fornecida.", "error")
+        return redirect(url_for('index'))
+
+    is_playlist = info.get('_type') == 'playlist'
+    final_download_type = f"playlist_{download_type}" if is_playlist else download_type
+    
+    # Formata o tamanho do arquivo para exibição
+    filesize = info.get('filesize_approx')
+    if filesize:
+        filesize_mb = f"{filesize / 1024 / 1024:.2f} MB"
     else:
-        flash(f"Falha no download. Verifique o console para detalhes.", "error")
-        print(f"ERRO DETALHADO: {result}")
-        
+        filesize_mb = "N/A" if not is_playlist else "Playlist"
+
+    queue_item = {
+        'url': video_url,
+        'title': info.get('title', 'Título desconhecido'),
+        'type': final_download_type, # ex: 'video', 'audio', 'playlist_video'
+        'quality': f"{info.get('height', 'Áudio')}p" if not 'audio' in final_download_type else 'MP3 192kbps',
+        'size': filesize_mb,
+    }
+
+    session['queue'].append(queue_item)
+    # Marca a sessão como modificada para garantir que seja salva
+    session.modified = True
+    flash(f"'{queue_item['title']}' adicionado à fila.", "success")
+    
     return redirect(url_for('index'))
 
+@app.route('/download_queue', methods=['POST'])
+def download_queue():
+    """Inicia o processo de download de todos os itens na fila."""
+    if 'queue' not in session or not session['queue']:
+        flash("A fila está vazia. Nada para baixar.", "error")
+        return redirect(url_for('index'))
 
-# --- Execução da Aplicação ---
+    # O download real pode demorar. Em uma app real, usaríamos tarefas em background (Celery, etc)
+    # Para este exemplo, faremos o download sequencialmente.
+    queue_to_download = session['queue']
+    
+    # Limpa a fila na sessão ANTES de começar a baixar
+    session['queue'] = []
+    session.modified = True
+
+    for item in queue_to_download:
+        print(f"Baixando: {item['title']}")
+        download_video_item(item['url'], item['type'])
+    
+    flash("Downloads da fila concluídos!", "success")
+    return redirect(url_for('index'))
+
+@app.route('/clear_queue', methods=['POST'])
+def clear_queue():
+    """Limpa todos os itens da fila."""
+    session['queue'] = []
+    session.modified = True
+    flash("Fila de downloads limpa.", "info")
+    return redirect(url_for('index'))
+
 if __name__ == '__main__':
     app.run(debug=True)
