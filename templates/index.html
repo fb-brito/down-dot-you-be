@@ -16,6 +16,9 @@
             90% { opacity: 1; transform: translateY(0); }
             100% { opacity: 0; transform: translateY(-20px); }
         }
+        .progress-bar-fill {
+            transition: width 0.4s ease;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4 sm:p-8">
@@ -35,7 +38,8 @@
         {% endwith %}
     </div>
 
-    <div class="w-full max-w-4xl mx-auto">
+    <div class="w-full max-w-5xl mx-auto">
+        <!-- Cabeçalho -->
         <div class="text-center mb-8">
             <h1 class="text-4xl font-bold text-cyan-400">Down-Dot-You-Be</h1>
             <p class="text-gray-400 mt-2">Crie sua fila e baixe vídeos e áudios do YouTube.</p>
@@ -66,8 +70,8 @@
         </div>
 
         <!-- Fila de Downloads -->
-        <div class="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8">
-            <h2 class="text-2xl font-bold mb-4 text-gray-200">Fila de Downloads ({{ queue|length }}/10)</h2>
+        <div id="queue-section" class="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8">
+            <h2 class="text-2xl font-bold mb-4 text-gray-200">Fila de Downloads</h2>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-400">
                     <thead class="text-xs text-cyan-300 uppercase bg-gray-700">
@@ -75,28 +79,29 @@
                             <th scope="col" class="px-4 py-3 w-16 text-center">Ordem</th>
                             <th scope="col" class="px-6 py-3">Título</th>
                             <th scope="col" class="px-6 py-3">Tamanho</th>
-                            <th scope="col" class="px-6 py-3">Qualidade</th>
                             <th scope="col" class="px-4 py-3 w-16 text-center">Tag</th>
+                            <th scope="col" class="px-6 py-3 w-1/4">Progresso</th> <!-- NOVA COLUNA -->
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="queue-table-body">
                         {% if queue %}
                             {% for item in queue %}
-                            <tr class="border-b bg-gray-800 border-gray-700 hover:bg-gray-600">
+                            <tr id="row-{{ item.id }}" class="border-b bg-gray-800 border-gray-700">
                                 <td class="px-4 py-4 text-center">
                                     <img src="{{ url_for('static', filename='images/' + loop.index|string + '_icon.png') }}" alt="Ordem {{ loop.index }}" class="h-6 w-6 mx-auto" onerror="this.style.display='none'; this.parentElement.innerText='{{ loop.index }}'">
                                 </td>
-                                <th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">
-                                    {{ item.title }}
-                                </th>
-                                <td class="px-6 py-4">
-                                    {{ item.size }}
-                                </td>
-                                <td class="px-6 py-4">
-                                    {{ item.quality }}
-                                </td>
+                                <th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">{{ item.title }}</th>
+                                <td class="px-6 py-4">{{ item.size }}</td>
                                 <td class="px-4 py-4 text-center">
                                     <img src="{{ url_for('static', filename='images/' + item.type + '_icon.png') }}" alt="Tag {{ item.type }}" class="h-6 w-6 mx-auto">
+                                </td>
+                                <!-- Célula da Barra de Progresso -->
+                                <td class="px-6 py-4">
+                                    <div class="progress-container w-full bg-gray-700 rounded-full h-4">
+                                        <div id="progress-bar-{{ item.id }}" class="progress-bar-fill bg-blue-600 h-4 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none" style="width: 0%">
+                                            <span id="progress-text-{{ item.id }}">Pendente</span>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -110,13 +115,11 @@
             </div>
             {% if queue %}
             <div class="flex flex-col sm:flex-row gap-4 mt-6">
-                <form action="{{ url_for('download_queue') }}" method="POST" class="w-full">
-                     <button type="submit" class="w-full text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-800 font-medium rounded-lg text-sm px-5 py-3.5 text-center transition-transform transform hover:scale-105">
-                        Iniciar Downloads
-                    </button>
-                </form>
+                <button id="start-download-btn" class="w-full text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-800 font-medium rounded-lg text-sm px-5 py-3.5 text-center transition-transform transform hover:scale-105">
+                    Iniciar Downloads
+                </button>
                  <form action="{{ url_for('clear_queue') }}" method="POST" class="w-full">
-                    <button type="submit" class="w-full text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm px-5 py-3.5 text-center transition-transform transform hover:scale-105">
+                    <button id="clear-queue-btn" type="submit" class="w-full text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-800 font-medium rounded-lg text-sm px-5 py-3.5 text-center transition-transform transform hover:scale-105">
                         Limpar Fila
                     </button>
                 </form>
@@ -124,5 +127,122 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        const startBtn = document.getElementById('start-download-btn');
+        const clearBtn = document.getElementById('clear-queue-btn');
+        let progressInterval;
+
+        async function startDownload() {
+            // Desabilita os botões para evitar múltiplas ações
+            startBtn.disabled = true;
+            clearBtn.disabled = true;
+            startBtn.innerHTML = 'Baixando...';
+            startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            clearBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                const response = await fetch("{{ url_for('start_download_queue') }}", { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível iniciar a fila de download.');
+                }
+                const data = await response.json();
+                
+                // Limpa o corpo da tabela e recria com a nova fila que tem os IDs
+                // (Opcional, mas garante consistência se a fila mudar)
+                document.getElementById('queue-table-body').innerHTML = '';
+                data.queue.forEach((item, index) => {
+                    const row = `
+                        <tr id="row-${item.id}" class="border-b bg-gray-800 border-gray-700">
+                            <td class="px-4 py-4 text-center">${index + 1}</td>
+                            <th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap">${item.title}</th>
+                            <td class="px-6 py-4">${item.size}</td>
+                            <td class="px-4 py-4 text-center">
+                                <img src="/static/images/${item.type}_icon.png" alt="Tag ${item.type}" class="h-6 w-6 mx-auto">
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="w-full bg-gray-700 rounded-full h-4">
+                                    <div id="progress-bar-${item.id}" class="progress-bar-fill bg-blue-600 h-4 rounded-full text-xs font-medium text-blue-100 text-center p-0.5 leading-none" style="width: 0%">
+                                        <span id="progress-text-${item.id}">Pendente</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    document.getElementById('queue-table-body').insertAdjacentHTML('beforeend', row);
+                });
+                
+                progressInterval = setInterval(updateProgress, 1000);
+
+            } catch (error) {
+                console.error('Erro:', error);
+                resetButtons();
+            }
+        }
+
+        async function updateProgress() {
+            const response = await fetch("{{ url_for('get_progress') }}");
+            const data = await response.json();
+
+            // Atualiza cada barra de progresso individualmente
+            for (const itemId in data.items) {
+                const itemProgress = data.items[itemId];
+                const progressBar = document.getElementById(`progress-bar-${itemId}`);
+                const progressText = document.getElementById(`progress-text-${itemId}`);
+
+                if (!progressBar) continue;
+
+                let percentage = Math.round(itemProgress.percentage) || 0;
+                let barColor = 'bg-blue-600'; // Pendente
+                let text = `Pendente`;
+
+                switch (itemProgress.status) {
+                    case 'downloading':
+                        barColor = 'bg-yellow-500';
+                        text = `${percentage}%`;
+                        break;
+                    case 'merging':
+                        barColor = 'bg-purple-500';
+                        percentage = 100; // Mostra a barra cheia durante o merge
+                        text = `Processando...`;
+                        break;
+                    case 'completed':
+                        barColor = 'bg-green-500';
+                        percentage = 100;
+                        text = `Concluído`;
+                        break;
+                    case 'error':
+                        barColor = 'bg-red-500';
+                        percentage = 100;
+                        text = `Erro`;
+                        break;
+                }
+                
+                progressBar.style.width = `${percentage}%`;
+                progressBar.className = progressBar.className.replace(/bg-\w+-\d+/g, barColor);
+                progressText.innerText = text;
+            }
+
+            // Se o processo geral terminou, para de verificar e recarrega
+            if (!data.is_running) {
+                clearInterval(progressInterval);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000); // Aguarda 3 segundos para o usuário ver o status final
+            }
+        }
+
+        function resetButtons() {
+            startBtn.disabled = false;
+            clearBtn.disabled = false;
+            startBtn.innerHTML = 'Iniciar Downloads';
+            startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            clearBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        if (startBtn) {
+            startBtn.addEventListener('click', startDownload);
+        }
+    </script>
 </body>
 </html>
