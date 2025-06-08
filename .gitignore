@@ -13,3 +13,8 @@ Thumbs.db
 
 # Pasta de downloads (NÃO versionar arquivos baixados)
 downloads/
+
+# Logs e arquivos de dados gerados pela aplicação ou pelo usuário
+logs/
+central_controle_projeto.xlsx
+links.txt
