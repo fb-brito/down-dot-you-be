@@ -20,14 +20,22 @@ MASTER_LOG_FILE = os.path.join(LOGS_DIR, 'master_log.csv')
 
 # --- Funções de Lógica ---
 
-def create_directories():
-    """Garante que todos os diretórios necessários existam."""
+def create_initial_directories():
+    """Garante que a pasta principal de downloads exista."""
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     os.makedirs(AUDIOS_DIR, exist_ok=True)
-    os.makedirs(LOGS_DIR, exist_ok=True)
+
+# Chamada da função para garantir que os diretórios sejam criados na inicialização
+create_initial_directories()
 
 def log_master_record(video_info, operation_type, status, output_path):
-    """Registra uma operação no arquivo de log mestre."""
+    """
+    Registra uma operação no arquivo de log mestre.
+    *** CORREÇÃO: Garante que o diretório de log exista antes de escrever. ***
+    """
+    # Garante que o diretório de logs exista
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    
     header = [
         "timestamp", "video_id", "video_title", 
         "operation_type", "status", "output_file_path"
@@ -53,17 +61,17 @@ def download_content(video_url, download_type):
     Realiza o download de vídeo ou áudio do YouTube.
     Retorna (True, info, path) em caso de sucesso ou (False, error_message, None) em caso de falha.
     """
+    operation_type = "Download Inválido" # Valor padrão
     try:
         if download_type == 'video':
-            # Opções para baixar o melhor vídeo com áudio combinado
             ydl_opts = {
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': os.path.join(VIDEOS_DIR, '%(title)s [%(id)s].%(ext)s'),
-                'quiet': False
+                'quiet': False,
+                'noplaylist': True
             }
             operation_type = "Download de Vídeo"
         elif download_type == 'audio':
-            # Opções para baixar o melhor áudio e convertê-lo para mp3
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'postprocessors': [{
@@ -72,7 +80,8 @@ def download_content(video_url, download_type):
                     'preferredquality': '192',
                 }],
                 'outtmpl': os.path.join(AUDIOS_DIR, '%(title)s [%(id)s].%(ext)s'),
-                'quiet': False
+                'quiet': False,
+                'noplaylist': True
             }
             operation_type = "Download de Áudio"
         else:
@@ -80,10 +89,7 @@ def download_content(video_url, download_type):
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
-            # O caminho do arquivo é determinado pelo 'outtmpl', yt-dlp o gerencia.
-            # Precisamos construir o caminho esperado para o log.
             filename = ydl.prepare_filename(info)
-            # Se for áudio, a extensão muda para mp3 após o pós-processamento.
             if download_type == 'audio':
                  base, _ = os.path.splitext(filename)
                  filename = base + '.mp3'
@@ -107,7 +113,7 @@ def index():
 def download():
     """Processa a requisição de download do formulário."""
     video_url = request.form.get('url')
-    download_type = request.form.get('type') # 'video' ou 'audio'
+    download_type = request.form.get('type')
 
     if not video_url:
         flash("Por favor, insira uma URL do YouTube.", "error")
@@ -117,14 +123,14 @@ def download():
 
     if success:
         title = result.get('title', 'desconhecido')
-        flash(f"Sucesso! '{title}' foi baixado para '{os.path.basename(path)}'.", "success")
+        flash(f"Sucesso! '{title}' foi baixado.", "success")
     else:
-        flash(f"Falha no download. Erro: {result}", "error")
+        flash(f"Falha no download. Verifique o console para detalhes.", "error")
+        print(f"ERRO DETALHADO: {result}")
         
     return redirect(url_for('index'))
 
 
 # --- Execução da Aplicação ---
 if __name__ == '__main__':
-    create_directories()
     app.run(debug=True)

@@ -11,6 +11,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Pasta de downloads (opcional, mas recomendado)
-# Descomente a linha abaixo se não quiser versionar os arquivos baixados
-# downloads/
+# Pasta de downloads (NÃO versionar arquivos baixados)
+downloads/
