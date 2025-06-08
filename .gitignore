@@ -1,0 +1,16 @@
+# Ambiente Virtual do Python
+venv/
+__pycache__/
+*.pyc
+
+# Arquivos de Sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de IDEs e Editores
+.vscode/
+.idea/
+
+# Pasta de downloads (opcional, mas recomendado)
+# Descomente a linha abaixo se não quiser versionar os arquivos baixados
+# downloads/

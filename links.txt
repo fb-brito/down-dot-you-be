@@ -1,0 +1,18 @@
+Thread:
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Vamos%20come%C3%A7ar%20a%20construir%20seu%20novo%20portf%C3%B3lio!
+
+Guia do Projeto: down-dot-you-be:
+
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Guia%20do%20Projeto,jun.%2C%2000%3A00
+
+Aplicação Flask: down-dot-you-be:
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Aplica%C3%A7%C3%A3o%20Flask%3A%20down%2Ddot%2Dyou%2Dbe,-8%20de%20jun
+
+Interface Web: index.html:
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Interface%20Web%3A%20index.html,-8%20de%20jun
+
+Dependências: requirements.txt:
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Abrir-,Depend%C3%AAncias%3A%20requirements.txt,-8%20de%20jun
+
+Guia para Criar seu Repositório no GitHub:
+https://gemini.google.com/app/9f6ba299f6c53313#:~:text=Guia%20para%20Criar%20seu%20Reposit%C3%B3rio%20no%20GitHub
